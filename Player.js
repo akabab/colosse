@@ -1,4 +1,5 @@
-var Player = function (name, color) {
+var Player = function (id, name, color) {
+  this.id = id;
   this.name = name;
   this.score = 0;
   this.color = color;
@@ -32,6 +33,4 @@ Player.prototype.movePions = function (pionId, line, col) {
           pion.eat(target);
       }
   }
-
-  Game.update();
 }

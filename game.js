@@ -1,18 +1,3 @@
-window.requestAnimFrame = (function() {
-  return  window.requestAnimationFrame       ||
-          window.webkitRequestAnimationFrame ||
-          window.mozRequestAnimationFrame    ||
-          function( callback ){
-            window.setTimeout(callback, 1000 / 60);
-          };
-})();
-
-// (function loop() {
-//   requestAnimFrame(loop);
-//   render();
-// })();
-
-
 var board =
 [
     [0,0,0,0,0],
@@ -36,20 +21,19 @@ var playerTurn = 0;
 
 var Game = {
   init: function () {
-    player1 = new Player("claude", "#2243dd");
-    player2 = new Player("yoann", "#ff2222");
+    player1 = new Player(1, "Claude", "#2243dd");
+    player2 = new Player(2, "Yoann", "#ff2222");
 
     PLAYER_POOL.push(player1);
     PLAYER_POOL.push(player2);
   },
-
-  update: function () {
-    draw();
-  }
 };
 
-var WIDTH = 600;
-var HEIGHT = 1000;
+var UNIT = 100;
+var U = function (n) { return n * UNIT; };
+
+var WIDTH = U(6);
+var HEIGHT = U(9);
 
 function init () {
   stage = new Kinetic.Stage({
@@ -69,45 +53,57 @@ function init () {
     x: 0,
     y: 0,
     width: WIDTH,
-    height: 100
+    height: U(1)
   });
 
   boardLayer = new Kinetic.Layer({
-    x: 0,
-    y: 100,
-    width: WIDTH,
-    height: 700
+    x: U(.5),
+    y: U(2),
+    width: U(5),
+    height: U(5)
   });
 
   // here is where things happen //
 
   Game.init();
-  Game.update();
 
-  // --------------------------- //
-
-  stage.add(boardLayer, uiLayer);
-}
-
-function draw () {
-  console.log("DRAW CALL");
-  Debug.printBoard();
-
-  drawBoard();
+  initBackgroundLayerContent();
+  initBoardLayerContent();
 
   PLAYER_POOL.forEach(function (player) {
-    drawPions(player.pions, player.color);
+    initPions(player.pions, player.color);
   });
 
-  drawUI();
-  boardLayer.draw();
-  // uiLayer.draw();
+  initUILayerContent();
+  // displayGroupOrLayerBounds(uiLayer, 'UI', 'pink', false);
+  displayGroupOrLayerBounds(backgroundLayer, 'BG', 'green', false);
+  // --------------------------- //
+
+  stage.add(backgroundLayer, boardLayer, uiLayer);
 }
 
-// draw
-function drawUI () {
+function displayGroupOrLayerBounds (groupOrLayer, name, color, fill) {
+  var r = new Kinetic.Rect({
+    width: groupOrLayer.attrs.width,
+    height: groupOrLayer.attrs.height,
+    fill: color,
+    fillEnabled: fill ? true : false,
+    stroke: color,
+    strokeWidth: 2
+  });
+
+  var t = new Kinetic.Text({
+    text: name,
+    fill: "black",
+  });
+
+  groupOrLayer.add(r, t);
+  groupOrLayer.draw();
+}
+
+function initUILayerContent () {
   var text = new Kinetic.Text({
-    x: 0,
+    x: 100,
     y: 0,
     text: "Player Turn:" + playerTurn,
     fontSize: 15,
@@ -118,7 +114,18 @@ function drawUI () {
   uiLayer.add(text);
 }
 
-function drawBoard () {
+function initBackgroundLayerContent () {
+  var bgRect = new Kinetic.Rect({
+    width: WIDTH,
+    height: HEIGHT,
+    stroke: 'grey',
+    strokeWidth: 3
+  });
+
+  backgroundLayer.add(bgRect);
+}
+
+function initBoardLayerContent () {
   var margin = 1;
 
   for (var j=0; j<5; j++) {
@@ -126,10 +133,10 @@ function drawBoard () {
         // induce scope
         (function () {
           var rect = new Kinetic.Rect({
-            x: i*100 + margin,
-            y: j*100 + margin,
-            width: 100 - 2*margin,
-            height: 100 - 2*margin,
+            x: i * U(1) + margin,
+            y: j * U(1) + margin,
+            width: U(1) - 2 * margin,
+            height: U(1) - 2 * margin,
             fill: "rgb(78, 173, 242)",
           });
 
@@ -137,8 +144,7 @@ function drawBoard () {
 
           rect.on('click', function () {
             console.log('rect clicked', rect.pos);
-
-            rect.fill('red');
+            // rect.fill('red');
             boardLayer.draw();
           });
 
@@ -148,17 +154,15 @@ function drawBoard () {
     }
 }
 
-function drawPions (pions, color) {
-  console.log("DRAW Pions");
-
+function initPions (pions, color) {
   pions.forEach(function (pion) {
     var x = pion.onBoard ? pion.col : pion.value - 1;
-    var y = pion.onBoard ? pion.line : -1;
+    var y = pion.onBoard ? pion.line : (pion.owner.id === 1 ? -1 : 5);
 
     var circle = new Kinetic.Circle({
-      x: x * 100 + 50,
-      y: y * 100 + 50,
-      radius: pion.value * 7,
+      x: x * U(1) + U(.5),
+      y: y * U(1) + U(.5),
+      radius: pion.value * 7 * U(.01),
       fill: color,
       stroke: "white",
       strokeWidth: 3,
@@ -171,17 +175,44 @@ function drawPions (pions, color) {
 
       circle.moveToTop();
       circle.strokeEnabled(true);
-      boardLayer.batchDraw();
+      boardLayer.draw();
     });
 
     circle.on('mouseout', function () {
       console.log("mouse out");
 
       circle.strokeEnabled(false);
-      boardLayer.batchDraw();
+      boardLayer.draw();
+    });
+
+    circle.on('dragmove', function (e) {
+      // console.log('dragmove', e);
+    });
+
+    circle.on('dragstart', function (e) {
+      circle.prevX = circle.attrs.x;
+      circle.prevY = circle.attrs.y;
+      console.log('dragstart', e);
+    });
+
+    circle.on('dragend', function (e) {
+      console.log('dragend', e);
+
+      var x = Math.floor(circle.attrs.x / U(1));
+      var y = Math.floor(circle.attrs.y / U(1));
+
+      //correct position
+      if (0 <= x && x < 5 && 0 <= y && y < 5 /* && move allowed */) {
+        circle.x(x * U(1) + U(.5));
+        circle.y(y * U(1) + U(.5));
+      } else {
+        circle.x(circle.prevX);
+        circle.y(circle.prevY);
+      }
+      boardLayer.draw();
+      console.log("Pion dropped on position", x, y);
     });
 
     boardLayer.add(circle);
   });
 }
-
